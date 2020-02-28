@@ -40,7 +40,7 @@ for ipaddr in ${ipaddrs}; do
             break
         fi
     done
-    if [ ${found} -eq 0 ]; then
+    if [[ ${found} -eq 0 && -n ${inetnum} ]]; then
 
         # block using iptables
         iptables -A INPUT -i ${iface} -m iprange --src-range ${inetnum} -j DROP
