@@ -4,27 +4,51 @@
 iface=eth0
 
 # local port numbers to check for connections from unwanted IP addresses
-ports=(22 443)
+ports=(22 3306 25060 443 80 5900 222)
 
 # whitelisted country codes
 whitelist=(CA EG KW)
 
+if [[ $1 == '-v' ]]; then
+   debug=1
+fi
+
 # get foreign IP addresses from connections to our specified local port numbers
-estconns=`netstat -tun | awk '{print $4":"$5}' | awk -F: '{print $1":"$2":"$3}' | tail -n+3`
+estconnsres=/tmp/estconns
+netstat -tun | awk '{print $4":"$5}' | awk -F: '{print $1":"$2":"$3}' | tail -n+3 > ${estconnsres}
+
+if [[ ${debug} == 1 ]]; then
+   echo "Foreign connections:"
+   cat ${estconnsres}
+fi
+
+estconnportres=/tmp/estconnportres
 ipaddrs=()
-for port in ${ports}; do
-    conn=`echo ${estconns} | grep ":${port}:"`
-    if [ -n "${conn}" ]; then
-        ipaddrs+=(`echo ${conn} | awk -F: '{print $3}'`)
+for port in ${ports[@]}; do
+    if [[ ${debug} == 1 ]]; then
+       echo "Checking for port "${port}
+    fi
+    cat ${estconnsres} | grep ":${port}:" > ${estconnportres}
+    if [ -s ${estconnportres} ]; then
+        for entry in `cat ${estconnportres}`; do
+           if [[ ${debug} == 1 ]]; then
+              echo "Adding entry: "${entry}
+           fi
+           ipaddrs+=(`echo ${entry} | awk -F: '{print $3}'`)
+        done
     fi
 done
 
-# remove duplicates
-ipaddrs=`echo ${ipaddrs} | awk '!a[$0]++'`
+if [[ ${debug} == 1 ]]; then
+   echo "IP address list:"
+   for entry in ${ipaddrs[@]}; do
+      echo ${entry}
+   done
+fi
 
 whoisres=/tmp/whoisres
 
-for ipaddr in ${ipaddrs}; do
+for ipaddr in ${ipaddrs[@]}; do
     whois ${ipaddr} > ${whoisres}
 
     # extract country code from whois result
@@ -40,10 +64,18 @@ for ipaddr in ${ipaddrs}; do
             break
         fi
     done
+    if [[ ${found} == 1 ]]; then
+         continue
+    fi
     if [[ ${found} -eq 0 && -n ${inetnum} ]]; then
-
-        # block using iptables
-        iptables -A INPUT -i ${iface} -m iprange --src-range ${inetnum} -j DROP
-
+        res=`iptables -L INPUT | grep ${inetnum}`
+        if [[ -n ${res} ]]; then
+           echo "The following rule already exists:"
+           echo ${res}
+        else
+           # block using iptables
+           echo "Executing: iptables -A INPUT -i ${iface} -m iprange --src-range ${inetnum} -j DROP"
+           iptables -A INPUT -i ${iface} -m iprange --src-range ${inetnum} -j DROP
+        fi
     fi
 done
