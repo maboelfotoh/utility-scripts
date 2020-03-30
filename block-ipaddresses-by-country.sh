@@ -57,7 +57,7 @@ for ipaddr in ${ipaddrs[@]}; do
     # extract IP address range from whois result
     inetnum=`cat ${whoisres} | grep 'inetnum:' | awk '{print $2"-"$4}'`
     if [[ -z ${inetnum} ]]; then
-       inetnum=`cat ${whoisres} | grep 'NetRange:' | awk '{print $2"-"$4}'`
+       inetnum=`cat ${whoisres} | grep 'NetRange:' | head -n 1 | awk '{print $2"-"$4}'`
     fi
 
     found=0
