@@ -56,6 +56,9 @@ for ipaddr in ${ipaddrs[@]}; do
 
     # extract IP address range from whois result
     inetnum=`cat ${whoisres} | grep 'inetnum:' | awk '{print $2"-"$4}'`
+    if [[ -z ${inetnum} ]]; then
+       inetnum=`cat ${whoisres} | grep 'NetRange:' | awk '{print $2"-"$4}'`
+    fi
 
     found=0
     for entry in "${whitelist[@]}"; do
@@ -65,7 +68,13 @@ for ipaddr in ${ipaddrs[@]}; do
         fi
     done
     if [[ ${found} == 1 ]]; then
+         if [[ ${debug} == 1 ]]; then
+            echo "Allowing ${ipaddr}"
+         fi
          continue
+    fi
+    if [[ ${debug} == 1 ]]; then
+        echo "Blackist ${ipaddr} in range ${inetnum}"
     fi
     if [[ ${found} -eq 0 && -n ${inetnum} ]]; then
         res=`iptables -L INPUT | grep ${inetnum}`
